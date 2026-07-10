@@ -7,6 +7,7 @@ class GameStateManager {
     this.playerId = '';
     this.playerName = '';
     this.isHost = false;
+    this.renderedMode = ''; // Track currently rendered layout to avoid flickering
     
     this.players = [];
     this.categories = [];
@@ -372,31 +373,95 @@ class GameStateManager {
     sound.playClick();
   }
 
-  // Main UI routing and renderer
+  // Main UI routing and renderer (optimized to avoid flickering/loss of focus)
   render() {
     const container = document.getElementById('game-container');
     if (!container) return;
 
-    // Clear previous screen view
-    container.className = `view-state-${this.mode.toLowerCase()}`;
-    
-    switch (this.mode) {
-      case 'LOBBY_SELECT':
-        container.innerHTML = this.renderLobbySelect();
-        break;
-      case 'LOBBY':
-        container.innerHTML = this.renderLobby();
-        break;
-      case 'PLAYING':
-        container.innerHTML = this.renderPlaying();
-        this.renderPowerups();
-        break;
-      case 'REVIEW':
-        container.innerHTML = this.renderReview();
-        break;
-      case 'SCOREBOARD':
-        container.innerHTML = this.renderScoreboard();
-        break;
+    // If state changed, perform full view update
+    if (this.renderedMode !== this.mode) {
+      this.renderedMode = this.mode;
+      container.className = `view-state-${this.mode.toLowerCase()}`;
+      
+      switch (this.mode) {
+        case 'LOBBY_SELECT':
+          container.innerHTML = this.renderLobbySelect();
+          break;
+        case 'LOBBY':
+          container.innerHTML = this.renderLobby();
+          break;
+        case 'PLAYING':
+          container.innerHTML = this.renderPlaying();
+          this.renderPowerups();
+          break;
+        case 'REVIEW':
+          container.innerHTML = this.renderReview();
+          break;
+        case 'SCOREBOARD':
+          container.innerHTML = this.renderScoreboard();
+          break;
+      }
+      return;
+    }
+
+    // Delta updates for the same state
+    if (this.mode === 'LOBBY') {
+      // Update player count badge
+      const badge = document.querySelector('.player-count-badge');
+      if (badge) {
+        const activePlayers = this.players.filter(p => p.active);
+        badge.textContent = `👤 ${activePlayers.length}/15`;
+      }
+      
+      // Update players list dynamically
+      const list = document.querySelector('.players-list');
+      if (list) {
+        list.innerHTML = this.players.map(p => `
+          <div class="player-card ${p.id === this.playerId ? 'self-player' : ''} ${!p.active ? 'player-disconnected' : ''}">
+            <div class="player-avatar" style="background-color: ${stringToHslColor(p.name)}">
+              ${p.name.charAt(0).toUpperCase()}
+            </div>
+            <div class="player-info">
+              <span class="player-name">${p.name} ${p.id === this.playerId ? '(Você)' : ''}</span>
+              <span class="player-status-text">${!p.active ? '❌ Desconectado' : (p.id === this.roomCode.hostId || p.ready ? '⭐ Pronto' : 'Aguardando')}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // If non-host, sync duration text dynamically
+      if (!this.isHost) {
+        const durationDisplay = document.querySelector('.setting-item span');
+        if (durationDisplay) {
+          durationDisplay.textContent = `${this.duration}s`;
+        }
+        
+        const tagsContainer = document.querySelector('.categories-tags-container');
+        if (tagsContainer) {
+          tagsContainer.innerHTML = this.categories.map(c => `<span class="category-tag">${c}</span>`).join('');
+        }
+      }
+    } else if (this.mode === 'PLAYING') {
+      // Dynamic stop banner update during playing phase (without wiping inputs)
+      if (this.stopPressedBy) {
+        let banner = document.querySelector('.stop-alert-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.className = 'stop-alert-banner alert-glow';
+          const hud = document.querySelector('.game-hud');
+          if (hud) hud.insertAdjacentElement('afterend', banner);
+        }
+        banner.innerHTML = `🚨 <strong>${this.stopPressedBy}</strong> apertou STOP! Finalizando em 5s...`;
+        
+        // Disable actions
+        const stopBtn = document.getElementById('btn-stop-round');
+        if (stopBtn) stopBtn.disabled = true;
+        
+        document.querySelectorAll('.category-input-field').forEach(input => input.disabled = true);
+      }
+    } else if (this.mode === 'SCOREBOARD') {
+      // Scoreboard has no user text inputs, safe to re-render in full
+      container.innerHTML = this.renderScoreboard();
     }
   }
 
