@@ -661,9 +661,7 @@ input[type="text"]:focus, select:focus {
   font-size: 1.1rem;
 }
 
-.category-input-field {
-  padding-left: 36px;
-}
+
 
 .spy-peek-info {
   font-size: 0.75rem;

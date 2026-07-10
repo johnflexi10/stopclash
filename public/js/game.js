@@ -544,7 +544,6 @@ class GameStateManager {
                   </div>
                 </div>
                 <div class="input-wrapper">
-                  <span class="letter-prefix">${this.letter}</span>
                   <input type="text" 
                          id="input-${cat}" 
                          class="category-input-field" 
